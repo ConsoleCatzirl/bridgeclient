@@ -33,7 +33,7 @@ def _is_json(content_type):
 
 
 class bridgeConnector:
-    def __init__(self, email=None, password=None, study='parkinson', type="researcher", rememberMe=False):
+    def __init__(self, email=None, password=None, study='parkinson', rememberMe=False):
         if email is None:
             config_auth_dict = bridgeConfig()
             config_auth_dict = config_auth_dict.getDict('authentication')
@@ -43,8 +43,8 @@ class bridgeConnector:
              email = raw_input('Username:')
              password = getpass.getpass('Password:' )
         print(email, password)
-        response = self.restPOST('/v3/auth/signIn', headers={},
-                                 json={"study": study, "email": email, "password": password, 'type': type})
+        response = self.restPOST('/v4/auth/signIn', headers={},
+                                 json={"appId": study, "email": email, "password": password})
         #TODO add caching of username/password
         print('Welcome %s' % response['firstName'])
         self.auth = response
