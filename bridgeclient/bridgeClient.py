@@ -21,7 +21,7 @@ except ImportError:
     import ConfigParser as configparser
 
 
-BASE_URL='https://webservices.sagebridge.org'
+BASE_URL='https://ws.sagebridge.org'
 CONFIG_FILE = os.path.join(os.path.expanduser('~'), '.bridgeConfig')
 
 
@@ -33,7 +33,7 @@ def _is_json(content_type):
 
 
 class bridgeConnector:
-    def __init__(self, email=None, password=None, study='parkinson', rememberMe=False):
+    def __init__(self, email=None, password=None, appId=None, rememberMe=False, admin=False):
         if email is None:
             config_auth_dict = bridgeConfig()
             config_auth_dict = config_auth_dict.getDict('authentication')
@@ -42,15 +42,21 @@ class bridgeConnector:
         if email is None:
              email = raw_input('Username:')
              password = getpass.getpass('Password:' )
-        print(email, password)
-        response = self.restPOST('/v4/auth/signIn', headers={},
-                                 json={"appId": study, "email": email, "password": password})
+        print(f"User: {email}")
+        url = '/v4/auth/signIn'
+        if admin:
+            print("Admin login")
+            url = '/v3/auth/admin/signIn'
+        response = self.restPOST(url, headers={},
+                                 json={"appId": appId, "email": email, "password": password})
+
+
         #TODO add caching of username/password
         print('Welcome %s' % response['firstName'])
         self.auth = response
 
 
-    def getParticipants(self, startDate=None, endDate=None):
+    def getParticipants(self, startDate=None, endDate=None, enrollment=None, pageSize=50):
         """Given an optional date range of enrollment get all Participants in
         a study that enrolled between dates.
 
@@ -59,7 +65,10 @@ class bridgeConnector:
         """
         total=100
         n=0
-        params={'startDate':startDate, 'endDate':  endDate, 'offsetBy': 0}
+        if enrollment is None:
+            enrollment = 'all'
+        params={'startDate':startDate, 'endDate': endDate, 'enrollmentFilter': enrollment,
+                'offsetBy': 0, 'pageSize': pageSize}
         dfs=[]
         while n<total:
             response = self.restGET('/v3/participants', params=params)
@@ -71,9 +80,10 @@ class bridgeConnector:
         return pd.concat(dfs)
 
 
-    def getParticipantMetaData(self, userId):
+    def getParticipantMetaData(self, userId=None, consents=False):
         """Gets consentHistory, healthCode and other metadata for on individual."""
-        return self.restGET('/v3/participants/%s' %userId)
+        params={'consents': str(consents)}
+        return self.restGET('/v3/participants/%s' %userId, params=params)
 
 
     def getParticipantInfo(self, userId):
@@ -119,7 +129,9 @@ class bridgeConnector:
         """
         uri, headers = self._build_uri_and_headers(uri, headers)
         response = requests.post(uri, json=json, headers=headers, **kwargs)
-        response.raise_for_status()
+        if response.status_code >= 400:
+            print(response.text)
+            response.raise_for_status()
         if _is_json(response.headers.get('content-type', None)):
             return response.json()
         return response.text
